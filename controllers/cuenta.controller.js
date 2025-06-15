@@ -69,7 +69,6 @@ exports.eliminarCuenta = async (req, res) => {
   }
 };
 
-// ✅ NUEVO: importar cuentas desde archivo Excel
 exports.importarCuentas = async (req, res) => {
   try {
     if (!req.file) {
@@ -84,23 +83,42 @@ exports.importarCuentas = async (req, res) => {
     let cuentasImportadas = [];
 
     for (const fila of datos) {
-      const { codigo, nombre, tipo, descripcion } = fila;
+      const codigo = fila.codigo?.toString().trim();
+      const nombre = fila.nombre?.toString().trim();
+      const tipo = fila.tipo?.toLowerCase().trim();
+      const descripcion = fila.descripcion?.toString().trim() || '';
+      const activo = typeof fila.activo === 'boolean' ? fila.activo : true;
 
-      if (!codigo || !nombre || !tipo) continue;
+      if (!codigo || !nombre || !tipo) {
+        console.warn(`⚠️ Fila incompleta ignorada:`, fila);
+        continue;
+      }
 
-      const cuenta = await Cuenta.create({ codigo, nombre, tipo, descripcion });
-      await registrarAuditoria(req, 'create', 'cuenta', cuenta.id, `Cuenta importada (${codigo})`);
+      if (!['activo', 'pasivo', 'ingreso', 'egreso'].includes(tipo)) {
+        console.warn(`❌ Tipo inválido en la fila:`, tipo);
+        continue;
+      }
+
+      const yaExiste = await Cuenta.findOne({ where: { codigo } });
+      if (yaExiste) {
+        console.log(`ℹ️ Cuenta con código ${codigo} ya existe. Ignorada.`);
+        continue;
+      }
+
+      const cuenta = await Cuenta.create({ codigo, nombre, tipo, descripcion, activo });
+      await registrarAuditoria(req, 'create', 'cuenta', cuenta.id, `Cuenta importada desde Excel (${codigo})`);
       cuentasImportadas.push(cuenta);
     }
 
-    // Eliminar el archivo temporal
     fs.unlinkSync(filePath);
 
     res.status(201).json({
-      mensaje: `Se importaron ${cuentasImportadas.length} cuentas exitosamente.`,
+      mensaje: `✅ Se importaron ${cuentasImportadas.length} cuentas.`,
       cuentas: cuentasImportadas
     });
+
   } catch (err) {
+    console.error('❌ Error al importar cuentas:', err);
     res.status(500).json({ mensaje: 'Error al importar cuentas', error: err.message });
   }
 };

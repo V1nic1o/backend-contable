@@ -10,5 +10,19 @@ module.exports = (sequelize, DataTypes) => {
     }
   });
 
+  Transaccion.associate = (models) => {
+    // Relación con detalles contables
+    Transaccion.hasMany(models.detallesTransaccion, {
+      foreignKey: 'transaccionId',
+      as: 'detalles'
+    });
+
+    // Relación con movimientos de inventario
+    Transaccion.hasMany(models.movimientoInventario, {
+      foreignKey: 'transaccionId',
+      as: 'movimientosInventario'
+    });
+  };
+
   return Transaccion;
 };

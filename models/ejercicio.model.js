@@ -1,5 +1,9 @@
 module.exports = (sequelize, DataTypes) => {
   const Ejercicio = sequelize.define('ejercicio', {
+    nombre: {
+      type: DataTypes.STRING,
+      allowNull: true
+    },
     anio: {
       type: DataTypes.INTEGER,
       allowNull: false,

@@ -1,17 +1,38 @@
 const PDFDocument = require('pdfkit');
 
 exports.generarPDF = (titulo, contenidoFn, res) => {
-  const doc = new PDFDocument({ margin: 40 });
+  try {
+    const doc = new PDFDocument({ margin: 40 });
 
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `attachment; filename=${titulo.replace(/ /g, '_')}.pdf`);
+    // Configurar headers HTTP
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=${titulo.replace(/\s+/g, '_')}.pdf`
+    );
 
-  doc.pipe(res);
+    // Enlazar errores del stream
+    doc.on('error', (err) => {
+      console.error('❌ Error al generar PDF:', err);
+      res.status(500).send('Error al generar el PDF');
+    });
 
-  doc.fontSize(18).text(titulo, { align: 'center' });
-  doc.moveDown();
+    // Pipe hacia la respuesta
+    doc.pipe(res);
 
-  contenidoFn(doc); // función que dibuja el contenido del PDF
+    // Título del PDF
+    doc.fontSize(18).text(titulo, { align: 'center' });
+    doc.moveDown();
 
-  doc.end();
+    // Generar contenido
+    contenidoFn(doc);
+
+    // Cerrar documento
+    doc.end();
+  } catch (err) {
+    console.error('❌ Error interno al generarPDF:', err);
+    if (!res.headersSent) {
+      res.status(500).send('Error interno al generar el PDF');
+    }
+  }
 };

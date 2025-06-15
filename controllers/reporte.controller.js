@@ -2,6 +2,9 @@ const db = require('../models');
 const Cuenta = db.cuentas;
 const Detalle = db.detallesTransaccion;
 const { generarPDF } = require('../services/pdfGenerator');
+const Auditoria = db.auditorias;
+const Usuario = db.usuarios;
+const ExcelJS = require('exceljs');
 
 exports.balanceGeneral = async (req, res) => {
   try {
@@ -196,15 +199,118 @@ exports.pdfLibroDiario = async (req, res) => {
     generarPDF('Libro Diario', (doc) => {
       transacciones.forEach(tx => {
         doc.fontSize(12).text(`📅 ${tx.fecha} - ${tx.descripcion}`);
+
         tx.detalles.forEach(d => {
-          const cuenta = `${d.cuenta.codigo} - ${d.cuenta.nombre}`;
+          const cuenta = d.cuenta
+            ? `${d.cuenta.codigo} - ${d.cuenta.nombre}`
+            : 'Cuenta desconocida';
+
           doc.text(`  ${cuenta} | ${d.tipo.toUpperCase()} | Q${parseFloat(d.monto).toFixed(2)}`);
         });
+
         doc.moveDown(0.5);
       });
     }, res);
 
   } catch (err) {
+    console.error('❌ Error al generar PDF Libro Diario:', err);
     res.status(500).json({ mensaje: 'Error al generar PDF', error: err.message });
   }
 };
+
+exports.pdfAuditoria = async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+
+    if (!desde || !hasta) {
+      return res.status(400).json({ mensaje: 'Debe proporcionar fechas "desde" y "hasta"' });
+    }
+
+    const auditorias = await Auditoria.findAll({
+      where: {
+        createdAt: {
+          [db.Sequelize.Op.between]: [new Date(desde), new Date(hasta)]
+        }
+      },
+      include: {
+        model: Usuario,
+        as: 'usuario',
+        attributes: ['nombre', 'correo']
+      },
+      order: [['createdAt', 'DESC']]
+    });
+
+    generarPDF('Reporte de Auditoría', (doc) => {
+      auditorias.forEach(a => {
+        doc.text(`🕒 ${a.createdAt.toLocaleString()} - ${a.accion.toUpperCase()} - ${a.entidad}(${a.entidadId || 'N/A'})`);
+        doc.text(`   Por: ${a.usuario?.nombre || 'Desconocido'} (${a.usuario?.correo || '---'})`);
+        doc.text(`   Descripción: ${a.descripcion || 'Sin descripción'}`);
+        doc.moveDown(0.5);
+      });
+    }, res);
+
+  } catch (err) {
+    console.error('❌ Error al generar PDF Auditoría:', err);
+    res.status(500).json({ mensaje: 'Error al generar PDF', error: err.message });
+  }
+};
+
+
+exports.excelAuditoria = async (req, res) => {
+  try {
+    const { desde, hasta } = req.query;
+
+    if (!desde || !hasta) {
+      return res.status(400).json({ mensaje: 'Debe proporcionar fechas "desde" y "hasta"' });
+    }
+
+    const auditorias = await Auditoria.findAll({
+      where: {
+        createdAt: {
+          [db.Sequelize.Op.between]: [new Date(desde), new Date(hasta)]
+        }
+      },
+      include: {
+        model: Usuario,
+        as: 'usuario',
+        attributes: ['nombre', 'correo']
+      },
+      order: [['createdAt', 'DESC']]
+    });
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Auditoría');
+
+    ws.columns = [
+      { header: 'Fecha', key: 'fecha', width: 20 },
+      { header: 'Acción', key: 'accion', width: 10 },
+      { header: 'Entidad', key: 'entidad', width: 15 },
+      { header: 'ID Entidad', key: 'entidadId', width: 10 },
+      { header: 'Descripción', key: 'descripcion', width: 30 },
+      { header: 'Usuario', key: 'usuario', width: 20 },
+      { header: 'Correo', key: 'correo', width: 30 },
+    ];
+
+    auditorias.forEach(a => {
+      ws.addRow({
+        fecha: a.createdAt.toLocaleString(),
+        accion: a.accion,
+        entidad: a.entidad,
+        entidadId: a.entidadId || 'N/A',
+        descripcion: a.descripcion || '',
+        usuario: a.usuario?.nombre || '',
+        correo: a.usuario?.correo || ''
+      });
+    });
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=reporte_auditoria.xlsx');
+
+    await wb.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('❌ Error al generar Excel Auditoría:', err);
+    res.status(500).json({ mensaje: 'Error al generar Excel', error: err.message });
+  }
+};
+

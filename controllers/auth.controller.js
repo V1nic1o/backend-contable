@@ -6,39 +6,21 @@ const { registrarAuditoria } = require('../services/auditoriaService'); // ✅ A
 
 exports.register = async (req, res) => {
   try {
-    const { nombre, correo, contrasena, rol } = req.body;
+    const { nombre, correo, contrasena } = req.body;
 
     const existe = await Usuario.findOne({ where: { correo } });
     if (existe) return res.status(400).json({ mensaje: 'Correo ya registrado' });
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(contrasena, salt);
-
     const nuevoUsuario = await Usuario.create({
       nombre,
       correo,
-      contrasena: hashedPassword,
-      rol: rol || 'usuario' // Por defecto, si no se envía el rol
+      contrasena,
+      rol: 'lector' // ✅ asignación fija y segura
     });
 
-    // Auditoría
     await registrarAuditoria(req, 'create', 'usuario', nuevoUsuario.id, `Usuario creado (${correo})`);
 
-    // Retornar usuario sin contraseña y con token
-    const token = jwt.sign({ id: nuevoUsuario.id, rol: nuevoUsuario.rol }, process.env.JWT_SECRET, {
-      expiresIn: '8h'
-    });
-
-    res.status(201).json({
-      mensaje: 'Usuario registrado exitosamente',
-      token,
-      usuario: {
-        id: nuevoUsuario.id,
-        nombre: nuevoUsuario.nombre,
-        correo: nuevoUsuario.correo,
-        rol: nuevoUsuario.rol
-      }
-    });
+    res.status(201).json({ mensaje: 'Usuario registrado exitosamente', usuario: nuevoUsuario });
   } catch (err) {
     res.status(500).json({ mensaje: 'Error al registrar usuario', error: err.message });
   }
@@ -55,7 +37,18 @@ exports.login = async (req, res) => {
     if (!valido) return res.status(401).json({ mensaje: 'Contraseña incorrecta' });
 
     const token = jwt.sign({ id: usuario.id, rol: usuario.rol }, process.env.JWT_SECRET, { expiresIn: '8h' });
-    res.json({ mensaje: 'Login exitoso', token });
+
+    // ✅ Ahora también devolvemos nombre, rol e id
+    res.json({
+      mensaje: 'Login exitoso',
+      token,
+      usuario: {
+        id: usuario.id,
+        nombre: usuario.nombre,
+        correo: usuario.correo,
+        rol: usuario.rol
+      }
+    });
   } catch (err) {
     res.status(500).json({ mensaje: 'Error al iniciar sesión', error: err.message });
   }

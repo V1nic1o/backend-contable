@@ -10,5 +10,11 @@ module.exports = (sequelize, DataTypes) => {
     }
   });
 
+  // ✅ Asociaciones necesarias para mostrar bien la cuenta en los detalles
+  Detalle.associate = models => {
+    Detalle.belongsTo(models.cuenta, { foreignKey: 'cuentaId' });
+    Detalle.belongsTo(models.transaccion, { foreignKey: 'transaccionId' });
+  };
+
   return Detalle;
 };

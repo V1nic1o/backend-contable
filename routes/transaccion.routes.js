@@ -13,6 +13,13 @@ router.post('/', verifyToken, isAdmin, transaccionController.crearTransaccion);
 // ✅ Obtener todas las transacciones (usuarios autenticados)
 router.get('/', verifyToken, transaccionController.obtenerTransacciones);
 
+// ✅ Nueva ruta de autocompletado
+router.get('/buscar', transaccionController.buscarPorChequeOReferencia);
+
+router.put('/:id', verifyToken, isAdmin, transaccionController.actualizarTransaccion);
+
+router.delete('/:id', verifyToken, isAdmin, transaccionController.eliminarTransaccion);
+
 // ✅ NUEVA RUTA: Importar transacciones desde archivo Excel (.xlsx)
 router.post(
   '/importar',

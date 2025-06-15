@@ -10,11 +10,15 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false
     },
     tipo: {
-      type: DataTypes.ENUM('activo', 'pasivo', 'patrimonio', 'ingreso', 'gasto'),
+      type: DataTypes.ENUM('activo', 'pasivo', 'patrimonio', 'ingreso', 'egreso','gasto'),
       allowNull: false
     },
     descripcion: {
       type: DataTypes.STRING
+    },
+    activo: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true
     }
   });
 
